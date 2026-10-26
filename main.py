@@ -35,6 +35,13 @@ def main() -> int:
              "circuit (straights, hairpins, chicanes, sweepers).")
     parser.add_argument("--laps", type=int, default=1,
                         help="number of laps to complete (default: 1)")
+    parser.add_argument("--realtime", action="store_true",
+                        help="make the replay play at speed-accurate pace "
+                             "(clip length proportional to real lap time) instead "
+                             "of the default fixed ~8s clip.")
+    parser.add_argument("--replay-scale", type=float, default=5.0,
+                        help="with --realtime, real seconds per clip second "
+                             "(default 5; higher = shorter clips).")
     parser.add_argument("--outdir", default="output", help="where to write SVGs")
     args = parser.parse_args()
 
@@ -94,10 +101,18 @@ def main() -> int:
     print(f"wrote      : {still_path}")
 
     if result.trajectory and len(result.trajectory) > 2:
-        anim = render_lap_svg(env.track, result.trajectory, lap_time=result.lap_time)
+        anim = render_lap_svg(
+            env.track,
+            result.trajectory,
+            lap_time=result.lap_time,
+            realtime=args.realtime,
+            real_time_s=env.state.time,
+            realtime_scale=args.replay_scale,
+        )
         anim_path = os.path.join(args.outdir, f"replay_{tag}.svg")
         save_svg(anim, anim_path)
-        print(f"wrote      : {anim_path}")
+        mode = "real-time pace" if args.realtime else "fixed 8s clip"
+        print(f"wrote      : {anim_path}  ({mode})")
 
     return 0
 

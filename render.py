@@ -122,6 +122,9 @@ def render_lap_svg(
     duration_s: float = 8.0,
     max_frames: int = 240,
     slip_threshold: float = 1e-3,
+    realtime: bool = False,
+    real_time_s: float | None = None,
+    realtime_scale: float = 5.0,
 ) -> str:
     """Render an animated lap that shows the car's *true heading*.
 
@@ -131,8 +134,22 @@ def render_lap_svg(
     keyframe-animated directly from the recorded heading. When the car slides,
     its heading differs from its direction of travel, so you can actually *see*
     it pointing one way while sliding another -- and it flashes while slipping.
+
+    Playback speed:
+
+    * Default -- the clip always lasts ``duration_s`` (~8 s), regardless of the
+      real lap time. Quick to glance at, but does not reflect actual pace.
+    * ``realtime=True`` -- the clip duration is proportional to the real
+      simulated time (``real_time_s`` divided by ``realtime_scale``), so a faster
+      run visibly plays as a shorter, snappier clip and you can compare pace
+      across replays.
     """
     vb_x, vb_y, vb_w, vb_h = _viewbox(track)
+
+    # Decide how long the animation should run (wall-clock seconds).
+    if realtime and real_time_s:
+        # proportional to real pace; clamp to a sensible, watchable range
+        duration_s = max(2.0, min(40.0, real_time_s / max(0.1, realtime_scale)))
 
     # Normalize samples to (x, y, heading, slip) and downsample to max_frames.
     samples = []
@@ -165,7 +182,8 @@ def render_lap_svg(
     title = "Lap replay"
     if lap_time is not None:
         title += f"  -  {lap_time:.2f}s"
-    title += "   (car flashes yellow while sliding)"
+    title += "  (real-time pace)" if (realtime and real_time_s) else "  (fixed 8s clip)"
+    title += "   -   car flashes yellow while sliding"
 
     dur = f"{duration_s:.1f}s"
     anim = (

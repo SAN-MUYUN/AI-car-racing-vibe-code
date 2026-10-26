@@ -75,6 +75,23 @@ This prints the lap time and writes two SVGs to `output/`:
 - `race_<seed>.svg` — a still of the final frame, with the car and its sensor rays.
 - `replay_<seed>.svg` — an animated replay of the whole lap (open in a browser).
 
+### Replay playback speed
+
+By default the replay is a quick **fixed ~8-second clip** regardless of the real
+lap time — easy to glance at, but it doesn't reflect actual pace (a 44 s lap and
+a 74 s lap both finish the clip in 8 s, so the slow one looks just as fast).
+
+Add **`--realtime`** to make the clip length proportional to the real lap time,
+so a faster run visibly plays as a shorter, snappier clip and you can compare
+pace across replays:
+
+```bash
+python main.py policies/example_policy.py --seed 7 --difficulty circuit-insane --realtime
+```
+
+`--replay-scale N` sets real seconds per clip second (default `5`; higher =
+shorter clips). Clip length is clamped to a watchable 2–40 s.
+
 To preview some tracks without racing:
 
 ```bash
