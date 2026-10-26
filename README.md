@@ -51,11 +51,24 @@ If the car goes off track partway, it reports how many laps it managed
 | Level | Generator | Feel |
 |---|---|---|
 | `easy` (default) | radial | smooth, gentle oval-ish loop |
-| `medium` | circuit | real-circuit shape, a few proper corners |
-| `hard` | circuit | more corners, sharper bends, longer |
-| `insane` | circuit | long, technical, tight (but drivable) corners |
+| `medium` | smooth circuit | real-circuit shape, a few proper corners |
+| `hard` | smooth circuit | more corners, sharper bends, longer |
+| `insane` | smooth circuit | long, technical, tight (but drivable) corners |
+| `circuit` (= `circuit-hard`) | **segment-based** | **Silverstone-style**: real straights, hairpins, chicanes and fast sweepers |
+| `circuit-medium` / `circuit-insane` | segment-based | easier / harder segment circuits |
 
 Same `--seed` + same `--difficulty` always produces the same track.
+
+The **`circuit-*`** styles use a different, more authentic generator (see below):
+instead of smoothing a random blob, they assemble the lap from a sequence of
+features — straights, corners, chicanes, sweepers — so you get long full-throttle
+straights leading into heavy braking zones and slow hairpins, the way a real
+circuit flows. Try:
+
+```bash
+python main.py policies/example_policy.py --seed 42 --difficulty circuit
+python main.py policies/example_policy.py --seed 7 --difficulty circuit-insane --laps 3
+```
 
 This prints the lap time and writes two SVGs to `output/`:
 
@@ -110,22 +123,30 @@ the most open sensor and brakes for corners) that laps every track.
 | CLI | `main.py` | Ties it together; prints the lap time, writes SVGs. |
 
 ### Tracks
-There are two generators (`env/track.py`):
+There are three generators (`env/track.py`, `env/circuit.py`):
 
 - **`easy` (radial)** — the centerline is `radius(angle)` around a center: a base
   radius plus a few random sine waves. Because radius is single-valued in the
   angle, the loop can never self-intersect — simple and always valid, but it
   can't make hairpins or straights.
 
-- **`medium` / `hard` / `insane` (circuit)** — scatter random points, take their
-  convex hull, spread them out, then **displace the hull edges** inward/outward
-  to create concave bends, hairpins and variety, and finally **smooth** it with
-  a Catmull-Rom spline. Each candidate is **validated** (no self-intersection,
-  and no corner tighter than the car can physically turn) and **regenerated** if
-  it fails. This produces complicated, real-circuit-style tracks with sharp
-  corners while staying drivable.
+- **`medium` / `hard` / `insane` (smooth circuit)** — scatter random points, take
+  their convex hull, spread them out, then **displace the hull edges** to create
+  concave bends and variety, and **smooth** with a Catmull-Rom spline. Validated
+  (no self-intersection, no undrivable corner) and regenerated on failure. More
+  complex than radial, but the smoothing gives fairly uniform curvature.
 
-Either way, the centerline is offset by half the track width to produce the
+- **`circuit-*` (segment-based, Silverstone-style)** — the authentic one. The lap
+  is assembled from a random sequence of *features* — straights, corners,
+  chicanes, fast sweepers — laid end to end, so you get distinct corner types
+  (slow hairpins, quick flicks, long sweepers) joined by real straights. The
+  loop is closed in two stages: the signed corner angles are normalized to sum
+  to exactly ±360° (so the heading closes by construction), then the straight
+  lengths are **nudged by a small Gauss-Newton solver** (finite-difference
+  Jacobian) to drive the end position back to the start. Same validation +
+  retry. This is what makes a layout flow like a real racing circuit.
+
+In every case the centerline is offset by half the track width to produce the
 edges. Same `--seed` + `--difficulty` → same track, so lap times are comparable.
 
 ### What the car "sees"
@@ -159,9 +180,10 @@ watch a dramatic slide, race a flat-out "full throttle, no braking" policy on a
 
 Working end to end:
 
-- [x] Random closed-loop track generator (radial + **circuit** generators)
-- [x] **Difficulty levels** (`easy` / `medium` / `hard` / `insane`) with
-      validate-and-retry so every circuit is drivable
+- [x] Three track generators: radial, smooth-circuit, and a **segment-based
+      Silverstone-style** generator (straights, hairpins, chicanes, sweepers)
+- [x] **Difficulty / style levels** (`easy` / `medium` / `hard` / `insane` /
+      `circuit-*`) with validate-and-retry so every track is drivable
 - [x] Car physics with a **grip limit** — the car slides if it corners too fast
 - [x] Sensor rays + gym-style environment (observation includes `slipping`/`slip`)
 - [x] Policy loader + runner (run a user's `.py` file, with error isolation)

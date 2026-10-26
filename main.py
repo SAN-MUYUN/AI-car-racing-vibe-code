@@ -25,10 +25,14 @@ def main() -> int:
     parser.add_argument("policy", help="path to your policy .py file")
     parser.add_argument("--seed", type=int, default=None,
                         help="track seed (same seed = same track)")
-    parser.add_argument("--difficulty", choices=["easy", "medium", "hard", "insane"],
-                        default="easy",
-                        help="track complexity (default: easy). "
-                             "medium/hard/insane use the circuit generator.")
+    parser.add_argument(
+        "--difficulty",
+        choices=["easy", "medium", "hard", "insane",
+                 "circuit", "circuit-medium", "circuit-hard", "circuit-insane"],
+        default="easy",
+        help="track type (default: easy). medium/hard/insane = smooth circuit; "
+             "circuit[-medium/-hard/-insane] = segment-based Silverstone-style "
+             "circuit (straights, hairpins, chicanes, sweepers).")
     parser.add_argument("--laps", type=int, default=1,
                         help="number of laps to complete (default: 1)")
     parser.add_argument("--outdir", default="output", help="where to write SVGs")

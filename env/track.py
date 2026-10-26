@@ -294,8 +294,35 @@ def generate_circuit_track(
 
 
 # --------------------------------------------------------------------------- #
+# Generator 3: segment-based circuit (Silverstone-style)
+# --------------------------------------------------------------------------- #
+def generate_segment_track(
+    seed: int | None = None,
+    style: str = "hard",
+    track_width: float = 20.0,
+) -> Track:
+    """Generate a segment-based circuit: straights, corners, chicanes, sweepers.
+
+    Produces proper racing-circuit layouts (distinct corner types joined by real
+    straights) via :mod:`env.circuit`, with the loop closed by construction +
+    an iterative nudge.
+    """
+    from env.circuit import generate_circuit_centerline
+
+    if seed is None:
+        seed = random.randrange(2**31)
+    center, seed = generate_circuit_centerline(seed, style_name=style)
+    inner, outer = _build_edges(center, track_width)
+    return Track(center, inner, outer, track_width, seed, difficulty=f"circuit-{style}")
+
+
+# --------------------------------------------------------------------------- #
 # Public entry point
 # --------------------------------------------------------------------------- #
+# Difficulty values that map to the segment-based circuit generator.
+_SEGMENT_STYLES = {"circuit", "circuit-medium", "circuit-hard", "circuit-insane"}
+
+
 def generate_track(
     seed: int | None = None,
     difficulty: str = "easy",
@@ -303,13 +330,21 @@ def generate_track(
 ) -> Track:
     """Generate a track at the requested difficulty.
 
-    ``difficulty='easy'`` uses the simple radial generator; ``'medium'``,
-    ``'hard'`` and ``'insane'`` use the circuit generator with increasingly
-    many, sharper corners.
+    - ``easy`` -> simple radial loop.
+    - ``medium`` / ``hard`` / ``insane`` -> smooth convex-hull circuit.
+    - ``circuit`` (alias ``circuit-hard``), ``circuit-medium``,
+      ``circuit-insane`` -> segment-based Silverstone-style circuit.
     """
     if difficulty == "easy":
         return generate_radial_track(
             seed=seed, track_width=track_width if track_width is not None else 18.0
+        )
+    if difficulty in _SEGMENT_STYLES:
+        style = "hard" if difficulty == "circuit" else difficulty.split("-", 1)[1]
+        return generate_segment_track(
+            seed=seed,
+            style=style,
+            track_width=track_width if track_width is not None else 20.0,
         )
     return generate_circuit_track(
         seed=seed,

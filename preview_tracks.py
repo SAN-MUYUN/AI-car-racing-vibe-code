@@ -19,11 +19,15 @@ from render import render_track_svg, save_svg
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Render random track previews.")
+    all_difficulties = [
+        "easy", "medium", "hard", "insane",
+        "circuit-medium", "circuit-hard", "circuit-insane",
+    ]
     parser.add_argument(
         "--difficulty",
-        choices=["easy", "medium", "hard", "insane", "all"],
+        choices=all_difficulties + ["circuit", "all"],
         default="all",
-        help="which difficulty to preview (default: a mix of all)",
+        help="which difficulty/style to preview (default: a mix of all)",
     )
     parser.add_argument(
         "--seeds", type=int, nargs="+", default=[1, 7, 42, 123],
@@ -32,11 +36,7 @@ def main() -> None:
     args = parser.parse_args()
 
     os.makedirs("previews", exist_ok=True)
-    difficulties = (
-        ["easy", "medium", "hard", "insane"]
-        if args.difficulty == "all"
-        else [args.difficulty]
-    )
+    difficulties = all_difficulties if args.difficulty == "all" else [args.difficulty]
 
     for diff in difficulties:
         for seed in args.seeds:
