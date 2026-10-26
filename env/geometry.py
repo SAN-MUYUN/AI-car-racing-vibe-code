@@ -118,8 +118,6 @@ def segments_cross(p1: Point, p2: Point, p3: Point, p4: Point) -> bool:
 
 def distance(a: Point, b: Point) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
-<<<<<<< HEAD
-=======
 
 
 def convex_hull(points: list[Point]) -> list[Point]:
@@ -258,4 +256,3 @@ def min_turn_radius(loop: list[Point], step: int = 3) -> float:
         if r < best:
             best = r
     return best
->>>>>>> 525c6c7a47049dbe4fdad4e6e1e8b4a4a8533d29
