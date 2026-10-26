@@ -165,6 +165,10 @@ class RaceEnv:
             "rays": rays,
             "speed": self.car.state.speed / self.car.config.max_speed,
             "on_track": on_track_centerline(x, y, self.track.center, self._half_width),
+            # grip feedback: whether the car is sliding, and how badly (0..1-ish).
+            # A learning driver can use these to decide to brake before corners.
+            "slipping": self.car.is_slipping,
+            "slip": min(1.0, self.car.state.slip / 0.3),
         }
 
     @property
