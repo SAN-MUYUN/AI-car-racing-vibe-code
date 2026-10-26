@@ -120,7 +120,7 @@ def render_lap_svg(
     trajectory: list,
     lap_time: float | None = None,
     duration_s: float = 8.0,
-    max_frames: int = 240,
+    max_frames: int = 1500,       # ceiling; actual frames scale with duration (~30fps)
     slip_threshold: float = 1e-3,
     realtime: bool = False,
     real_time_s: float | None = None,
@@ -151,7 +151,14 @@ def render_lap_svg(
         # proportional to real pace; clamp to a sensible, watchable range
         duration_s = max(2.0, min(40.0, real_time_s / max(0.1, realtime_scale)))
 
-    # Normalize samples to (x, y, heading, slip) and downsample to max_frames.
+    # Choose a frame count that keeps playback smooth: scale frames with the
+    # clip duration so a longer (real-time) clip isn't starved of frames and
+    # stutter. Target ~30 fps, within a floor/ceiling.
+    target_fps = 30.0
+    want_frames = int(duration_s * target_fps)
+    frame_cap = max(120, min(max_frames, want_frames))
+
+    # Normalize samples to (x, y, heading, slip) and downsample to frame_cap.
     samples = []
     for s in trajectory:
         if len(s) >= 4:
@@ -160,21 +167,29 @@ def render_lap_svg(
             x, y, h = s[0], s[1], s[2]
             slip = 0.0
         samples.append((x, y, h, slip))
-    if len(samples) > max_frames:
-        step = len(samples) / max_frames
-        samples = [samples[int(i * step)] for i in range(max_frames)]
+    if len(samples) > frame_cap:
+        stepf = len(samples) / frame_cap
+        samples = [samples[int(i * stepf)] for i in range(frame_cap)]
     n = len(samples)
     if n < 2:
         samples = samples * 2
         n = 2
 
-    # Build keyframe streams. We animate position and heading separately using
-    # two nested groups (an SVG <animateTransform> carries a single transform
-    # type), sharing the same keyTimes so they stay in sync.
-    times = ";".join(f"{i/(n-1):.4f}" for i in range(n))
+    # Unwrap heading so linear interpolation doesn't spin the wrong way across
+    # the +/-180 deg boundary (e.g. 179 -> -179 should be a +2 deg step).
+    degs = [math.degrees(h) for _, _, h, _ in samples]
+    unwrapped = [degs[0]]
+    for d in degs[1:]:
+        prev = unwrapped[-1]
+        delta = ((d - prev + 180.0) % 360.0) - 180.0
+        unwrapped.append(prev + delta)
+
+    # Build keyframe streams. Position and rotation use linear interpolation so
+    # the car glides smoothly between frames; the slip-flash colour stays
+    # discrete (it's a state, and we want a crisp flash).
+    times = ";".join(f"{i/(n-1):.5f}" for i in range(n))
     translates = ";".join(f"{x:.2f} {y:.2f}" for x, y, _, _ in samples)
-    rotates = ";".join(f"{math.degrees(h):.1f}" for _, _, h, _ in samples)
-    # flash to a bright colour while slipping, normal red otherwise
+    rotates = ";".join(f"{d:.1f}" for d in unwrapped)
     fills = ";".join(
         "#ffd166" if slip > slip_threshold else "#e63946" for _, _, _, slip in samples
     )
@@ -186,7 +201,11 @@ def render_lap_svg(
     title += "   -   car flashes yellow while sliding"
 
     dur = f"{duration_s:.1f}s"
-    anim = (
+    smooth = (
+        f'dur="{dur}" repeatCount="indefinite" calcMode="linear" '
+        f'keyTimes="{times}"'
+    )
+    discrete = (
         f'dur="{dur}" repeatCount="indefinite" calcMode="discrete" '
         f'keyTimes="{times}"'
     )
@@ -194,7 +213,7 @@ def render_lap_svg(
     car_shape = (
         '<polygon points="11,0 -6,5 -6,-5" fill="#e63946" '
         'stroke="#7a1521" stroke-width="1">'
-        f'<animate attributeName="fill" {anim} values="{fills}"/>'
+        f'<animate attributeName="fill" {discrete} values="{fills}"/>'
         '</polygon>'
     )
 
@@ -207,10 +226,10 @@ def render_lap_svg(
         f'  {_track_body(track)}\n'
         f'  <g>\n'
         f'    <animateTransform attributeName="transform" type="translate" '
-        f'{anim} values="{translates}"/>\n'
+        f'{smooth} values="{translates}"/>\n'
         f'    <g>\n'
         f'      <animateTransform attributeName="transform" type="rotate" '
-        f'{anim} values="{rotates}"/>\n'
+        f'{smooth} values="{rotates}"/>\n'
         f'      {car_shape}\n'
         f'    </g>\n'
         f'  </g>\n'

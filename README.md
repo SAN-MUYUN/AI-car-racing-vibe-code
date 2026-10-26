@@ -92,6 +92,11 @@ python main.py policies/example_policy.py --seed 7 --difficulty circuit-insane -
 `--replay-scale N` sets real seconds per clip second (default `5`; higher =
 shorter clips). Clip length is clamped to a watchable 2–40 s.
 
+Playback stays smooth at any length: the number of animation frames scales with
+the clip duration (targeting ~30 fps), and the car's position and heading are
+linearly interpolated between frames — so a longer real-time clip glides rather
+than stutters.
+
 To preview some tracks without racing:
 
 ```bash
