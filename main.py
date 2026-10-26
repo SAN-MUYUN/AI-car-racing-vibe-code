@@ -29,6 +29,8 @@ def main() -> int:
                         default="easy",
                         help="track complexity (default: easy). "
                              "medium/hard/insane use the circuit generator.")
+    parser.add_argument("--laps", type=int, default=1,
+                        help="number of laps to complete (default: 1)")
     parser.add_argument("--outdir", default="output", help="where to write SVGs")
     args = parser.parse_args()
 
@@ -40,17 +42,31 @@ def main() -> int:
         return 1
 
     # --- race ----------------------------------------------------------------
-    result, env = run_policy(policy, seed=args.seed, difficulty=args.difficulty)
+    result, env = run_policy(
+        policy, seed=args.seed, difficulty=args.difficulty, laps=args.laps
+    )
 
     # --- report --------------------------------------------------------------
     print(f"track seed : {env.track.seed}")
+    print(f"laps       : {result.laps_requested}")
     if result.reason == "error":
         print(f"result     : ERROR\n{result.error}")
     elif result.finished:
-        print(f"result     : LAP COMPLETE")
-        print(f"lap time   : {result.lap_time:.2f}s")
+        lap_word = "lap" if result.laps_completed == 1 else "laps"
+        print(f"result     : RACE COMPLETE ({result.laps_completed} {lap_word})")
     else:
-        print(f"result     : did not finish ({result.reason})")
+        print(f"result     : did not finish ({result.reason}) "
+              f"after {result.laps_completed}/{result.laps_requested} laps")
+
+    # per-lap splits (best lap marked)
+    if result.lap_times:
+        best = result.best_lap
+        for i, t in enumerate(result.lap_times, start=1):
+            mark = "  <- best" if t == best else ""
+            print(f"  lap {i}    : {t:.2f}s{mark}")
+        if result.laps_requested > 1 and result.total_time is not None:
+            print(f"  total    : {result.total_time:.2f}s")
+
     print(f"steps      : {result.steps}")
     print(f"reward     : {result.total_reward:.1f}")
 
@@ -64,7 +80,10 @@ def main() -> int:
         car=final_pose,
         rays=env.ray_endpoints,
         title=f"{env.track.difficulty}  seed={env.track.seed}  "
-              + (f"lap={result.lap_time:.2f}s" if result.lap_time else result.reason),
+              + (
+                  f"best={result.best_lap:.2f}s ({result.laps_completed}/{result.laps_requested} laps)"
+                  if result.best_lap else result.reason
+              ),
     )
     still_path = os.path.join(args.outdir, f"race_{tag}.svg")
     save_svg(still, still_path)

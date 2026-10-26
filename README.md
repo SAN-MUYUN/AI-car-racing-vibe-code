@@ -21,7 +21,28 @@ python main.py policies/example_policy.py --seed 42 --difficulty hard
 
 # Random track each run (omit --seed):
 python main.py policies/example_policy.py --difficulty insane
+
+# Multi-lap race (reports each lap, the best lap, and the total):
+python main.py policies/example_policy.py --seed 42 --laps 3
 ```
+
+### Laps
+
+`--laps N` runs an N-lap race (default 1). The car drives continuously; each
+time it crosses the start/finish line a lap split is recorded. Output shows every
+lap time, marks the fastest, and (for multi-lap races) the total:
+
+```
+laps       : 3
+result     : RACE COMPLETE (3 laps)
+  lap 1    : 39.90s
+  lap 2    : 39.60s  <- best
+  lap 3    : 39.65s
+  total    : 119.15s
+```
+
+If the car goes off track partway, it reports how many laps it managed
+(e.g. `did not finish (off_track) after 1/3 laps`).
 
 ### Difficulty
 

@@ -51,7 +51,9 @@ class EnvState:
     steps: int = 0
     time: float = 0.0
     lap_count: int = 0
-    lap_time: float | None = None
+    lap_time: float | None = None          # time of the most recently finished lap
+    lap_times: list[float] = field(default_factory=list)  # each lap's split (s)
+    last_cross_time: float = 0.0           # sim time of the last start-line cross
     off_track_time: float = 0.0
     prev_pose: tuple[float, float, float] = (0.0, 0.0, 0.0)
     trajectory: list[tuple[float, float, float]] = field(default_factory=list)
@@ -62,19 +64,23 @@ class RaceEnv:
         self,
         seed: int | None = None,
         difficulty: str = "easy",
+        laps: int = 1,
         env_config: EnvConfig | None = None,
         car_config: CarConfig | None = None,
         track: Track | None = None,
     ) -> None:
         self.cfg = env_config or EnvConfig()
+        self.laps = max(1, int(laps))          # how many laps to complete
         # Either use a supplied track, or generate one at the given difficulty.
         self.track: Track = track or generate_track(seed=seed, difficulty=difficulty)
         self.car = Car(car_config)
 
-        # Scale the step cap to the track length so a slow lap on a long circuit
-        # isn't cut off early. Allow generous time at a conservative crawl speed.
+        # Scale the step cap to the track length *and lap count* so a slow run
+        # over several long laps isn't cut off early.
         crawl_speed = max(1.0, self.car.config.max_speed * 0.10)
-        est_steps = int((self.track.length() / crawl_speed) / self.cfg.dt * 2.0)
+        est_steps = int(
+            (self.track.length() / crawl_speed) / self.cfg.dt * 2.0 * self.laps
+        )
         self._max_steps = max(self.cfg.max_steps, est_steps)
         self.state = EnvState()
 
@@ -126,12 +132,21 @@ class RaceEnv:
         if self._crossed_start_line(prev_pose, self.car.pose):
             # Ignore the very first steps so we don't count the start itself.
             if self.state.time > 1.0:
+                # this lap's split = time since the previous crossing
+                split = self.state.time - self.state.last_cross_time
+                self.state.last_cross_time = self.state.time
                 self.state.lap_count += 1
-                self.state.lap_time = self.state.time
+                self.state.lap_time = split
+                self.state.lap_times.append(split)
                 reward += 100.0
-                done = True
-                info["reason"] = "lap_complete"
-                info["lap_time"] = self.state.lap_time
+                info["lap"] = self.state.lap_count
+                info["lap_time"] = split
+                # finished only once all requested laps are done
+                if self.state.lap_count >= self.laps:
+                    done = True
+                    info["reason"] = "race_complete"
+                    info["lap_times"] = list(self.state.lap_times)
+                    info["total_time"] = self.state.time
 
         # --- step cap -------------------------------------------------------
         if self.state.steps >= self._max_steps and not done:
