@@ -91,7 +91,7 @@ class RaceEnv:
         heading = math.atan2(nxt[1] - start[1], nxt[0] - start[0])
         self.car.reset(start[0], start[1], heading)
         self.state = EnvState(prev_pose=self.car.pose)
-        self.state.trajectory.append(self.car.pose)
+        self.state.trajectory.append((*self.car.pose, self.car.state.slip))
         return self._observe()
 
     # ------------------------------------------------------------------- step
@@ -103,7 +103,7 @@ class RaceEnv:
         self.car.step(steer, throttle, self.cfg.dt)
         self.state.steps += 1
         self.state.time += self.cfg.dt
-        self.state.trajectory.append(self.car.pose)
+        self.state.trajectory.append((*self.car.pose, self.car.state.slip))
 
         x, y, _ = self.car.pose
         is_on = on_track_centerline(x, y, self.track.center, self._half_width)

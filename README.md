@@ -127,6 +127,13 @@ managing speed is a real skill a driver (or a trained policy) has to learn. The
 slide is recoverable: lift off / slow down and grip returns. The observation's
 `slipping` / `slip` fields tell your code when it's happening, so it can react.
 
+**Seeing the slide:** in the animated replay (`output/replay_*.svg`) the car is
+drawn at its true *heading*, so when it slides you can see it pointing one way
+while travelling another, and it **flashes yellow** while slipping. A cautious
+driver that brakes for corners (like the bundled example) won't slide much — to
+watch a dramatic slide, race a flat-out "full throttle, no braking" policy on a
+`hard` or `insane` track and it will drift wide and spin off.
+
 ## Status
 
 Working end to end:

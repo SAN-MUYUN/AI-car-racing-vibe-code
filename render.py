@@ -96,7 +96,7 @@ def render_track_svg(
     ]
 
     if car is not None:
-        cx, cy, heading = car
+        cx, cy, heading = car[0], car[1], car[2]   # tolerate extra fields (slip)
         if rays:
             for rx, ry in rays:
                 parts.append(
@@ -117,20 +117,68 @@ def render_track_svg(
 
 def render_lap_svg(
     track: Track,
-    trajectory: list[tuple[float, float, float]],
+    trajectory: list,
     lap_time: float | None = None,
     duration_s: float = 8.0,
+    max_frames: int = 240,
+    slip_threshold: float = 1e-3,
 ) -> str:
-    """Render an animated lap. ``trajectory`` is a list of ``(x, y, heading)``
-    samples; the car animates along them via native SVG ``<animateMotion>``."""
+    """Render an animated lap that shows the car's *true heading*.
+
+    ``trajectory`` is a list of ``(x, y, heading[, slip])`` samples. Instead of
+    ``<animateMotion rotate="auto">`` (which forces the sprite to face its path
+    and so hides any slide), the car's ``transform`` (translate + rotate) is
+    keyframe-animated directly from the recorded heading. When the car slides,
+    its heading differs from its direction of travel, so you can actually *see*
+    it pointing one way while sliding another -- and it flashes while slipping.
+    """
     vb_x, vb_y, vb_w, vb_h = _viewbox(track)
-    motion_path = _path_d([(x, y) for x, y, _ in trajectory], close=False)
+
+    # Normalize samples to (x, y, heading, slip) and downsample to max_frames.
+    samples = []
+    for s in trajectory:
+        if len(s) >= 4:
+            x, y, h, slip = s[0], s[1], s[2], s[3]
+        else:
+            x, y, h = s[0], s[1], s[2]
+            slip = 0.0
+        samples.append((x, y, h, slip))
+    if len(samples) > max_frames:
+        step = len(samples) / max_frames
+        samples = [samples[int(i * step)] for i in range(max_frames)]
+    n = len(samples)
+    if n < 2:
+        samples = samples * 2
+        n = 2
+
+    # Build keyframe streams. We animate position and heading separately using
+    # two nested groups (an SVG <animateTransform> carries a single transform
+    # type), sharing the same keyTimes so they stay in sync.
+    times = ";".join(f"{i/(n-1):.4f}" for i in range(n))
+    translates = ";".join(f"{x:.2f} {y:.2f}" for x, y, _, _ in samples)
+    rotates = ";".join(f"{math.degrees(h):.1f}" for _, _, h, _ in samples)
+    # flash to a bright colour while slipping, normal red otherwise
+    fills = ";".join(
+        "#ffd166" if slip > slip_threshold else "#e63946" for _, _, _, slip in samples
+    )
 
     title = "Lap replay"
     if lap_time is not None:
         title += f"  -  {lap_time:.2f}s"
+    title += "   (car flashes yellow while sliding)"
 
-    car = '<polygon points="11,0 -6,5 -6,-5" fill="#e63946" stroke="#7a1521" stroke-width="1"/>'
+    dur = f"{duration_s:.1f}s"
+    anim = (
+        f'dur="{dur}" repeatCount="indefinite" calcMode="discrete" '
+        f'keyTimes="{times}"'
+    )
+    # car drawn at the origin, pointing +x; outer g translates, inner g rotates.
+    car_shape = (
+        '<polygon points="11,0 -6,5 -6,-5" fill="#e63946" '
+        'stroke="#7a1521" stroke-width="1">'
+        f'<animate attributeName="fill" {anim} values="{fills}"/>'
+        '</polygon>'
+    )
 
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
@@ -140,12 +188,16 @@ def render_lap_svg(
         f'height="{vb_h:.2f}" fill="#1a1d23"/>\n'
         f'  {_track_body(track)}\n'
         f'  <g>\n'
-        f'    {car}\n'
-        f'    <animateMotion dur="{duration_s:.1f}s" repeatCount="indefinite" '
-        f'rotate="auto" path="{motion_path}"/>\n'
+        f'    <animateTransform attributeName="transform" type="translate" '
+        f'{anim} values="{translates}"/>\n'
+        f'    <g>\n'
+        f'      <animateTransform attributeName="transform" type="rotate" '
+        f'{anim} values="{rotates}"/>\n'
+        f'      {car_shape}\n'
+        f'    </g>\n'
         f'  </g>\n'
         f'  <text x="{vb_x + 8:.2f}" y="{vb_y + 20:.2f}" fill="#f1f1f1" '
-        f'font-size="14">{title}</text>\n'
+        f'font-size="13">{title}</text>\n'
         f'</svg>\n'
     )
 
