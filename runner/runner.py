@@ -28,11 +28,12 @@ class RaceResult:
 def run_policy(
     policy,
     seed: int | None = None,
+    difficulty: str = "easy",
     env_config: EnvConfig | None = None,
     per_step_budget_s: float = 0.25,
 ) -> tuple[RaceResult, RaceEnv]:
     """Drive ``policy`` around a track and return the result + the env (for render)."""
-    env = RaceEnv(seed=seed, env_config=env_config)
+    env = RaceEnv(seed=seed, difficulty=difficulty, env_config=env_config)
     obs = env.reset()
     total_reward = 0.0
     done = False

@@ -61,12 +61,21 @@ class RaceEnv:
     def __init__(
         self,
         seed: int | None = None,
+        difficulty: str = "easy",
         env_config: EnvConfig | None = None,
         car_config: CarConfig | None = None,
+        track: Track | None = None,
     ) -> None:
         self.cfg = env_config or EnvConfig()
-        self.track: Track = generate_track(seed=seed)
+        # Either use a supplied track, or generate one at the given difficulty.
+        self.track: Track = track or generate_track(seed=seed, difficulty=difficulty)
         self.car = Car(car_config)
+
+        # Scale the step cap to the track length so a slow lap on a long circuit
+        # isn't cut off early. Allow generous time at a conservative crawl speed.
+        crawl_speed = max(1.0, self.car.config.max_speed * 0.10)
+        est_steps = int((self.track.length() / crawl_speed) / self.cfg.dt * 2.0)
+        self._max_steps = max(self.cfg.max_steps, est_steps)
         self.state = EnvState()
 
         # Precompute edge segments for fast ray-casting / collision.
@@ -125,7 +134,7 @@ class RaceEnv:
                 info["lap_time"] = self.state.lap_time
 
         # --- step cap -------------------------------------------------------
-        if self.state.steps >= self.cfg.max_steps and not done:
+        if self.state.steps >= self._max_steps and not done:
             done = True
             info["reason"] = "timeout"
 

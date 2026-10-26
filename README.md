@@ -16,9 +16,25 @@ fast your code can complete a lap.
 # Race the bundled example driver on a specific track:
 python main.py policies/example_policy.py --seed 42
 
+# Crank up the track complexity:
+python main.py policies/example_policy.py --seed 42 --difficulty hard
+
 # Random track each run (omit --seed):
-python main.py policies/example_policy.py
+python main.py policies/example_policy.py --difficulty insane
 ```
+
+### Difficulty
+
+`--difficulty` controls how complicated the circuit is:
+
+| Level | Generator | Feel |
+|---|---|---|
+| `easy` (default) | radial | smooth, gentle oval-ish loop |
+| `medium` | circuit | real-circuit shape, a few proper corners |
+| `hard` | circuit | more corners, sharper bends, longer |
+| `insane` | circuit | long, technical, tight (but drivable) corners |
+
+Same `--seed` + same `--difficulty` always produces the same track.
 
 This prints the lap time and writes two SVGs to `output/`:
 
@@ -71,12 +87,23 @@ the most open sensor and brakes for corners) that laps every track.
 | CLI | `main.py` | Ties it together; prints the lap time, writes SVGs. |
 
 ### Tracks
-Each track centerline is defined in polar form: for every angle `theta` around a
-center, the radius is a base radius plus a few random low-frequency sine waves.
-Because the radius is a single-valued function of the angle, the loop can never
-cross itself — so every generated track is valid and drivable. The centerline is
-offset by half the track width to produce the edges. Same `--seed` → same track,
-so lap times are comparable.
+There are two generators (`env/track.py`):
+
+- **`easy` (radial)** — the centerline is `radius(angle)` around a center: a base
+  radius plus a few random sine waves. Because radius is single-valued in the
+  angle, the loop can never self-intersect — simple and always valid, but it
+  can't make hairpins or straights.
+
+- **`medium` / `hard` / `insane` (circuit)** — scatter random points, take their
+  convex hull, spread them out, then **displace the hull edges** inward/outward
+  to create concave bends, hairpins and variety, and finally **smooth** it with
+  a Catmull-Rom spline. Each candidate is **validated** (no self-intersection,
+  and no corner tighter than the car can physically turn) and **regenerated** if
+  it fails. This produces complicated, real-circuit-style tracks with sharp
+  corners while staying drivable.
+
+Either way, the centerline is offset by half the track width to produce the
+edges. Same `--seed` + `--difficulty` → same track, so lap times are comparable.
 
 ### What the car "sees"
 Each tick the policy gets a fan of distance sensors (default 7, spread 90°)
@@ -85,17 +112,20 @@ That's the full observation — the rest is up to your code.
 
 ## Status
 
-MVP complete and working end to end:
+Working end to end:
 
-- [x] Random closed-loop track generator
+- [x] Random closed-loop track generator (radial + **circuit** generators)
+- [x] **Difficulty levels** (`easy` / `medium` / `hard` / `insane`) with
+      validate-and-retry so every circuit is drivable
 - [x] Car physics (kinematic bicycle model)
 - [x] Sensor rays + gym-style environment
 - [x] Policy loader + runner (run a user's `.py` file, with error isolation)
-- [x] Lap timing + start/finish detection
+- [x] Lap timing + start/finish detection (step cap scales with track length)
 - [x] SVG rendering: still frame + animated replay
-- [x] Working example policy
+- [x] Working example policy that laps the harder tracks
 
 ### Ideas for next
+- Multiple cars on one track (ghost race / overlaid replay).
 - Multiple-seed averaging for fairer scoring / a leaderboard.
 - A Gymnasium-compatible wrapper so people can train RL agents.
 - Richer physics (tyre slip / drift), walls you can graze, lap sectors.
